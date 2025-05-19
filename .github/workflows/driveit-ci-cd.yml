@@ -17,6 +17,7 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           cache: maven
+          cache-dependency-path: api/pom.xml
       - name: Create secret.properties
         run: |
           echo "jwt.secret-key=${{ secrets.JWT_SECRET_KEY }}" > api/src/main/resources/secret.properties
@@ -24,7 +25,8 @@ jobs:
           echo "spring.mail.username=${{ secrets.MAIL_USERNAME }}" >> api/src/main/resources/secret.properties
           echo "spring.mail.password=${{ secrets.MAIL_PASSWORD }}" >> api/src/main/resources/secret.properties
       - name: Test with Maven
-        run: cd api && mvn test
+        working-directory: ./api
+        run: mvn test
 
   test-frontend:
     runs-on: ubuntu-latest
@@ -35,10 +37,13 @@ jobs:
         with:
           node-version: '18'
           cache: 'npm'
+          cache-dependency-path: 'app/package-lock.json'
       - name: Install dependencies
-        run: cd app && npm ci
+        working-directory: ./app
+        run: npm ci
       - name: Run tests
-        run: cd app && npm test -- --watch=false --browsers=ChromeHeadless
+        working-directory: ./app
+        run: npm test -- --watch=false --browsers=ChromeHeadless
 
   build-and-push:
     needs: [test-backend, test-frontend]
