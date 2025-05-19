@@ -1,0 +1,134 @@
+name: DriveIt CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      - name: Create secret.properties
+        run: |
+          echo "jwt.secret-key=${{ secrets.JWT_SECRET_KEY }}" > api/src/main/resources/secret.properties
+          echo "jwt.expiration-time=${{ secrets.JWT_EXPIRATION_TIME }}" >> api/src/main/resources/secret.properties
+          echo "spring.mail.username=${{ secrets.MAIL_USERNAME }}" >> api/src/main/resources/secret.properties
+          echo "spring.mail.password=${{ secrets.MAIL_PASSWORD }}" >> api/src/main/resources/secret.properties
+      - name: Test with Maven
+        run: cd api && mvn test
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      - name: Install dependencies
+        run: cd app && npm ci
+      - name: Run tests
+        run: cd app && npm test -- --watch=false --browsers=ChromeHeadless
+
+  build-and-push:
+    needs: [test-backend, test-frontend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Create .env file
+        run: |
+          echo "MARIADB_CONTAINER_NAME=${{ secrets.MARIADB_CONTAINER_NAME }}" > .env
+          echo "MARIADB_ROOT_PASSWORD=${{ secrets.MARIADB_ROOT_PASSWORD }}" >> .env
+          echo "MARIADB_DATABASE=${{ secrets.MARIADB_DATABASE }}" >> .env
+          echo "MARIADB_USER=${{ secrets.MARIADB_USER }}" >> .env
+          echo "MARIADB_PASSWORD=${{ secrets.MARIADB_PASSWORD }}" >> .env
+          echo "MARIADB_PORT=${{ secrets.MARIADB_PORT }}" >> .env
+          echo "PHPMYADMIN_CONTAINER_NAME=${{ secrets.PHPMYADMIN_CONTAINER_NAME }}" >> .env
+          echo "PHPMYADMIN_PORT=${{ secrets.PHPMYADMIN_PORT }}" >> .env
+          echo "API_CONTAINER_NAME=${{ secrets.API_CONTAINER_NAME }}" >> .env
+          echo "API_PORT=${{ secrets.API_PORT }}" >> .env
+          echo "APP_CONTAINER_NAME=${{ secrets.APP_CONTAINER_NAME }}" >> .env
+          echo "APP_PORT=${{ secrets.APP_PORT }}" >> .env
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./api
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/driveit-api:latest
+
+      - name: Build and push APP image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./app
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/driveit-app:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Create deployment files
+        run: |
+          echo "MARIADB_CONTAINER_NAME=${{ secrets.MARIADB_CONTAINER_NAME }}" > .env
+          echo "MARIADB_ROOT_PASSWORD=${{ secrets.MARIADB_ROOT_PASSWORD }}" >> .env
+          echo "MARIADB_DATABASE=${{ secrets.MARIADB_DATABASE }}" >> .env
+          echo "MARIADB_USER=${{ secrets.MARIADB_USER }}" >> .env
+          echo "MARIADB_PASSWORD=${{ secrets.MARIADB_PASSWORD }}" >> .env
+          echo "MARIADB_PORT=${{ secrets.MARIADB_PORT }}" >> .env
+          echo "PHPMYADMIN_CONTAINER_NAME=${{ secrets.PHPMYADMIN_CONTAINER_NAME }}" >> .env
+          echo "PHPMYADMIN_PORT=${{ secrets.PHPMYADMIN_PORT }}" >> .env
+          echo "API_CONTAINER_NAME=${{ secrets.API_CONTAINER_NAME }}" >> .env
+          echo "API_PORT=${{ secrets.API_PORT }}" >> .env
+          echo "APP_CONTAINER_NAME=${{ secrets.APP_CONTAINER_NAME }}" >> .env
+          echo "APP_PORT=${{ secrets.APP_PORT }}" >> .env
+          
+      - name: Deploy to server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ${{ secrets.DEPLOY_PATH }}
+            docker compose down
+            git pull
+            cat << 'EOL' > .env
+            MARIADB_CONTAINER_NAME=${{ secrets.MARIADB_CONTAINER_NAME }}
+            MARIADB_ROOT_PASSWORD=${{ secrets.MARIADB_ROOT_PASSWORD }}
+            MARIADB_DATABASE=${{ secrets.MARIADB_DATABASE }}
+            MARIADB_USER=${{ secrets.MARIADB_USER }}
+            MARIADB_PASSWORD=${{ secrets.MARIADB_PASSWORD }}
+            MARIADB_PORT=${{ secrets.MARIADB_PORT }}
+            PHPMYADMIN_CONTAINER_NAME=${{ secrets.PHPMYADMIN_CONTAINER_NAME }}
+            PHPMYADMIN_PORT=${{ secrets.PHPMYADMIN_PORT }}
+            API_CONTAINER_NAME=${{ secrets.API_CONTAINER_NAME }}
+            API_PORT=${{ secrets.API_PORT }}
+            APP_CONTAINER_NAME=${{ secrets.APP_CONTAINER_NAME }}
+            APP_PORT=${{ secrets.APP_PORT }}
+            EOL
+            docker compose pull
+            docker compose up -d
