@@ -1,6 +1,6 @@
 services:
   database:
-    container_name: "${MARIADB_CONTAINER_NAME}"
+    container_name: driveit-database
     image: mariadb:latest
     restart: always
     environment:
@@ -14,7 +14,7 @@ services:
       - db-data:/var/lib/mysql
 
   phpmyadmin:
-    container_name: "${PHPMYADMIN_CONTAINER_NAME}"
+    container_name: driveit-phpmyadmin
     image: phpmyadmin:latest
     restart: always
     links:
@@ -26,7 +26,7 @@ services:
       - ${PHPMYADMIN_PORT}:80
 
   api:
-    container_name: "${API_CONTAINER_NAME}"
+    container_name: driveit-api
     build:
       context: ./api
       dockerfile: Dockerfile
@@ -52,7 +52,7 @@ services:
             - ./api/.git
 
   app:
-    container_name: "${APP_CONTAINER_NAME}"
+    container_name: driveit-app
     build:
       context: ./app
       dockerfile: Dockerfile
