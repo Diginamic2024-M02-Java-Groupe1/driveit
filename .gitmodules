@@ -1,0 +1,8 @@
+[submodule "app"]
+	path = app
+	url = git@github.com:Diginamic2024-M02-Java-Groupe1/driveit-front.git
+	branch = dev
+[submodule "api"]
+	path = api
+	url = git@github.com:Diginamic2024-M02-Java-Groupe1/driveit-back.git
+	branch = dev

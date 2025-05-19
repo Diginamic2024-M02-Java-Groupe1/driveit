@@ -1,0 +1,73 @@
+services:
+  database:
+    container_name: "${MARIADB_CONTAINER_NAME}"
+    image: mariadb:latest
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MARIADB_ROOT_PASSWORD}"
+      MYSQL_DATABASE: "${MARIADB_DATABASE}"
+      MYSQL_USER: "${MARIADB_USER}"
+      MYSQL_PASSWORD: "${MARIADB_PASSWORD}"
+    ports:
+      - "${MARIADB_PORT}:3306"
+    volumes:
+      - db-data:/var/lib/mysql
+
+  phpmyadmin:
+    container_name: "${PHPMYADMIN_CONTAINER_NAME}"
+    image: phpmyadmin:latest
+    restart: always
+    links:
+      - database
+    environment:
+      PMA_HOST: database
+      PMA_PORT: 3306
+    ports:
+      - ${PHPMYADMIN_PORT}:80
+
+  api:
+    container_name: "${API_CONTAINER_NAME}"
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      - database
+    environment:
+      SPRING_SERVER_PORT: ${API_PORT}
+      SPRING_DATASOURCE_URL: jdbc:mariadb://database:3306/${MARIADB_DATABASE}
+      SPRING_DATASOURCE_USERNAME: ${MARIADB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${MARIADB_PASSWORD}
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.mariadb.jdbc.Driver
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.MariaDBDialect
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    ports:
+      - "${API_PORT}:8080"
+    develop:
+      watch:
+        - action: rebuild
+          path: ./api
+          ignore:
+            - ./api/target
+            - ./api/.git
+
+  app:
+    container_name: "${APP_CONTAINER_NAME}"
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "${APP_PORT}:80"
+    develop:
+      watch:
+        - action: rebuild
+          path: ./app
+          ignore:
+            - ./app/node_modules
+            - ./app/dist
+            - ./app/.git
+
+volumes:
+  db-data:
+    name: driveit-db-data
