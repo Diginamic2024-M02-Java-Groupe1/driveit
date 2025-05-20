@@ -21,7 +21,7 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           cache: maven
-          cache-dependency-path: '**/pom.xml'  # More general path pattern
+          cache-dependency-path: 'api/pom.xml'  # More general path pattern
       
       - name: List directory structure for debugging
         run: find . -type f -name "pom.xml"
