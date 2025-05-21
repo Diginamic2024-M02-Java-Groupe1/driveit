@@ -41,6 +41,9 @@ services:
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.mariadb.jdbc.Driver
       SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.MariaDBDialect
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SERVER_PORT: ${API_PORT}
+      SERVER_ADDRESS: 0.0.0.0
+      CLIENT_URL: http://localhost
     ports:
       - "${API_PORT}:8080"
     develop:
@@ -57,6 +60,9 @@ services:
       context: ./app
       dockerfile: Dockerfile
     restart: always
+    depends_on:
+      - api
+      - database
     ports:
       - "${APP_PORT}:80"
     develop:
